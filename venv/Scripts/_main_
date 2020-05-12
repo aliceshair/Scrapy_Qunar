@@ -1,0 +1,176 @@
+
+# 一级页面, 每个页面有10条景点, 假设爬取50页
+# 北京旅游景点列表 https://travel.qunar.com/p-cs299914-beijing-jingdian
+#------------------------------------------------------------------------------
+
+# 每次保存
+# //划掉QAQ 经纬度(不保存白不保存 万一有用呢) : <li class="item" data-lat="39.502139" data-lng="116.340954">
+# 景点名称: 如"故宫"; <span class="cn_tit">故宫<span class="en_tit">Forbidden City</span></span>
+# 景点简介: 世界....; <div class="desbox">世界五大宫之首，是中国明清两代的皇家宫殿。</div>
+# 评论链接 点击进入 <a data-beacon="poi" href="https://travel.qunar.com/p-oi710603-gugong"  alt="故宫"
+#------------------------------------------------------------------------------
+
+# 二级页面, 每个页面有10条评论, 每次要点击进入下一页, 如果没有 next, 则表示爬取完毕
+# 下一页 <a class="page next"  href="https://travel.qunar.com/p-oi710603-gugong-1-2?rank=0#lydp">下一页</a>
+# 用户ID <li class="e_comment_item clrfix" id="cmt_item_10158224437">
+# 用户评论 <p class="first">我和同学是10月1号去的，因为人太多，</p>
+
+import requests
+import lxml
+import xlrd
+import re
+import urllib3
+import urllib.request as request
+from bs4 import BeautifulSoup
+from lxml import etree
+
+user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36'
+headers = {'User-Agent': user_agent}
+
+def level2page(urls):#二级页面
+    comment=[]#需要的评论
+    comment_url=set()#没有显示全文的评论链接id
+    comment_id=set()#所有评论的id
+    flag=0
+  #  comment_url.append(urls)
+    req = request.Request(urls, headers=headers)
+    try:#因为有可能页面不存在, 404
+        page = request.urlopen(req).read().decode('utf-8')
+    except:
+        flag=1
+        pass
+    if(flag):
+        flag=0
+        return
+    bs_text = BeautifulSoup(page, 'lxml')
+    #1.搜索Seemore, 匹配的地址最后的数字即 comment
+    all_li = bs_text.find_all('li',attrs={'class':'e_comment_item clrfix'})
+    n=0
+#   print(all_li)
+    for i in all_li:
+      #find comment_url
+      tmp=re.search(r"href(.*)",str(all_li[n]))
+      tmp=re.search(r"[a-zA-z]+://[^\s]*",str(tmp.group()))
+      tmp = str(tmp.group())[:-1]
+      if(36<len(tmp)):
+           continue
+      tmp=tmp[-7:]
+      comment_url.add(tmp)
+      n=n+1
+    n=0
+    for i in all_li:
+      #find comment_id
+      id = re.findall(r"id(.*)", str(all_li[n]))
+      id=str(id)
+      id=id[13:20]
+      comment_id.add(id)
+      n=n+1
+  # print("评论链接: ",comment_url)
+  # print("所有评论id",comment_id)
+  #2.提取评论,检查是否有"阅读全部"=1 comment id 与Seemore网址末尾的id相同 进入三级页面
+    for full_text in comment_url:
+      page3="https://travel.qunar.com/p-pl"+full_text
+     # print(page3)
+      level3page(page3)
+  #"没有阅读全部"=0,在二级页面直接抓取
+
+    # 下一评论页面
+    nextpage = bs_text.select('#js_replace_box > div.b_comment_box > div > a.page.next')
+    nextpage = re.findall(r"[a-zA-z]+://[^\s]*", str(nextpage))
+    nextpage = str(nextpage[1])
+    nextpage = nextpage[:-10]
+    # print(nextpage)
+    level2page(nextpage)
+
+
+
+
+
+
+def level3page(urls):
+    req = request.Request(urls, headers=headers)
+    global pa
+    try:
+     pa = request.urlopen(req).read().decode('utf-8')
+    except :
+        pass
+    bs_text = BeautifulSoup(pa, 'lxml')
+    all_div=bs_text.select('#js_mainleft > div.b_comment_detail_box > div.b_comment_detail > div.e_comment_content_box > div')
+    #print("all_div",all_div)
+    divs = bs_text.find_all('p', attrs={'class': 'first'})#直接获取全文的评论
+    for i in divs:
+        tmp=i.get_text()
+       # print(tmp)
+
+
+
+
+
+#获取html文本
+for pages in range(1,2):
+    print("正在抓取第",pages,"页")
+    url = 'https://travel.qunar.com/p-cs299914-beijing-jingdian-1-1' #对于北京的景点首页
+    #      https://travel.qunar.com/p-cs299914-beijing-jingdian-1-n 其中n为第n页 每次增加1
+    url=url[:-1]
+    url=url+str(pages)
+
+    req = request.Request(url, headers=headers)
+    pag= request.urlopen(req).read().decode('utf-8')
+    bs_text=BeautifulSoup(pag,'lxml')
+
+    #一级页面
+    all_li=bs_text.select('body > div.qn_main_box > div > div.qn_main_ct.clrfix > div.qn_main_ct_l > div > div.listbox > ul > li > div > div.titbox.clrfix > a')
+    all_inform=bs_text.select('body > div.qn_main_box > div > div.qn_main_ct.clrfix > div.qn_main_ct_l > div > div.listbox > ul > li > div > div.txtbox.clrfix > div.desbox')
+    # print(all_li)
+    # print(all_inform)
+    name=[]
+    inform=[]
+    url2=[]
+    # print("获取景点名称:")
+    # for i in all_li:
+    #     tmp=i.get_text()
+    #     name.append(tmp)
+    # print(name)
+    # print("获取景点评论链接")
+    n=0
+    for i in all_li:
+        tmp=re.search(r"href(.*)",str(all_li[n]))#找到网页链接所在及之后的字符串
+        tmp=re.search(r"[a-zA-z]+://[^\s]*",str(tmp.group()))#匹配网页链接
+        tmp=str(tmp.group())[:-1]#去掉多余的单引号
+     #   url2.append(tmp)#👆清洗景点详情页面的链接
+        level2page(tmp)#进入景点评论的爬取
+        n=n+1#re.search找的是第一个, n每次加一, 即search的结果后移
+    # print(url2)
+    # print("获取景点介绍:")
+    # for i in all_inform:
+    #     tmp=i.get_text()
+    #     if(1 > len(tmp)):#没有景点介绍
+    #         tmp='NA'
+    #     inform.append(tmp)
+    # print(inform)
+
+
+#========没用的代码======
+# test=etree.HTML(url)
+# t=test.xpath('//li[@class="item"/div/div.titbox.clrfix/a/@href')
+# print(t)
+
+# for all_li in all_li:
+#     print('li:\n')
+#     print('li text:',all_li.text)
+# all_span=bs_text.find_all('span')
+#
+# desbox=bs_text.find_all('div',attrs={'class':'desbox'})
+# print(desbox)
+#
+# next_page=bs_text.find_all(href=requests.compile(r'https://travel.qunar.com/p-'))#获取二级页面链接丛
+#
+# for next_page in next_page:
+#     print('next_page:')
+#     print(next_page)
+#
+
+
+
+
+
