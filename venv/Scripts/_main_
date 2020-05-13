@@ -19,23 +19,28 @@ import requests
 import lxml
 import xlrd
 import re
-import urllib3
+import urllib
+import time
+import random
 import urllib.request as request
 from bs4 import BeautifulSoup
 from lxml import etree
-
-user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36'
+#防止你所在的IP访问频率过高
+user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36 Edg/81.0.416.72'
 headers = {'User-Agent': user_agent}
+proxies = {"http": "http://198.199.120.102:8080"}
 
 def level2page(urls):#二级页面
+    time.sleep(random.random() * 3)
     comment=[]#需要的评论
     comment_url=set()#没有显示全文的评论链接id
     comment_id=set()#所有评论的id
     flag=0
   #  comment_url.append(urls)
-    req = request.Request(urls, headers=headers)
+    req = request.Request(url, headers=headers)
     try:#因为有可能页面不存在, 404
-        page = request.urlopen(req).read().decode('utf-8')
+        page = request.urlopen(req).read().decode('utf-8','ignore')
+        print(page)
     except:
         flag=1
         pass
@@ -43,10 +48,34 @@ def level2page(urls):#二级页面
         flag=0
         return
     bs_text = BeautifulSoup(page, 'lxml')
+    all_comment = bs_text.find_all('p')
+    print(all_comment)
+    for i in all_comment:
+        tmp = i.get_text()
+        print(tmp)
+
+'''
+    nextpage = bs_text.select('js_replace_box > div.b_comment_box > div > a.page.next')
+    nextpage = re.findall(r"[a-zA-z]+://[^\s]*", str(nextpage))
+    nextpage = str(nextpage[1])
+    nextpage = nextpage[:-10]
+    # print(nextpage)
+    level2page(nextpage)
+'''
+
+'''暂时阉割了
     #1.搜索Seemore, 匹配的地址最后的数字即 comment
-    all_li = bs_text.find_all('li',attrs={'class':'e_comment_item clrfix'})
+    all_comment = bs_text.find_all('li',attrs={'class':'e_comment_item clrfix'})
     n=0
-#   print(all_li)
+    print(urls,"\n")
+    all_comment=etree.parse(urls)
+    sb=etree.tostring(all_comment,pretty_print=True)
+    sx=sb.decode('utf-8')
+    sd=sx.xpath('/html/body/div[2]/div/div[1]/div[2]/div[5]/div[2]/div[8]/div[4]/div[2]/ul/li[5]')
+    print("YES",sd)
+
+
+
     for i in all_li:
       #find comment_url
       tmp=re.search(r"href(.*)",str(all_li[n]))
@@ -67,24 +96,20 @@ def level2page(urls):#二级页面
       n=n+1
   # print("评论链接: ",comment_url)
   # print("所有评论id",comment_id)
+
   #2.提取评论,检查是否有"阅读全部"=1 comment id 与Seemore网址末尾的id相同 进入三级页面
     for full_text in comment_url:
       page3="https://travel.qunar.com/p-pl"+full_text
      # print(page3)
       level3page(page3)
   #"没有阅读全部"=0,在二级页面直接抓取
-
     # 下一评论页面
-    nextpage = bs_text.select('#js_replace_box > div.b_comment_box > div > a.page.next')
+    nextpage = bs_text.select('js_replace_box > div.b_comment_box > div > a.page.next')
     nextpage = re.findall(r"[a-zA-z]+://[^\s]*", str(nextpage))
     nextpage = str(nextpage[1])
     nextpage = nextpage[:-10]
     # print(nextpage)
     level2page(nextpage)
-
-
-
-
 
 
 def level3page(urls):
@@ -101,13 +126,12 @@ def level3page(urls):
     for i in divs:
         tmp=i.get_text()
        # print(tmp)
-
-
-
+ '''
 
 
 #获取html文本
 for pages in range(1,2):
+    time.sleep(random.random() * 3)
     print("正在抓取第",pages,"页")
     url = 'https://travel.qunar.com/p-cs299914-beijing-jingdian-1-1' #对于北京的景点首页
     #      https://travel.qunar.com/p-cs299914-beijing-jingdian-1-n 其中n为第n页 每次增加1
@@ -150,27 +174,26 @@ for pages in range(1,2):
     # print(inform)
 
 
-#========没用的代码======
-# test=etree.HTML(url)
-# t=test.xpath('//li[@class="item"/div/div.titbox.clrfix/a/@href')
-# print(t)
+'''
+test=etree.HTML(url)
+t=test.xpath('//li[@class="item"/div/div.titbox.clrfix/a/@href')
+print(t)
 
-# for all_li in all_li:
-#     print('li:\n')
-#     print('li text:',all_li.text)
-# all_span=bs_text.find_all('span')
-#
-# desbox=bs_text.find_all('div',attrs={'class':'desbox'})
-# print(desbox)
-#
-# next_page=bs_text.find_all(href=requests.compile(r'https://travel.qunar.com/p-'))#获取二级页面链接丛
-#
-# for next_page in next_page:
-#     print('next_page:')
-#     print(next_page)
-#
+for all_li in all_li:
+    print('li:\n')
+    print('li text:',all_li.text)
+all_span=bs_text.find_all('span')
 
+desbox=bs_text.find_all('div',attrs={'class':'desbox'})
+print(desbox)
 
+next_page=bs_text.find_all(href=requests.compile(r'https://travel.qunar.com/p-'))#获取二级页面链接丛
+
+for next_page in next_page:
+    print('next_page:')
+    print(next_page)
+
+'''
 
 
 
